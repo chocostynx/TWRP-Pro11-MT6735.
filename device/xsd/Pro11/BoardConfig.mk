@@ -1,0 +1,33 @@
+# XSD Pro11 - MT6735
+# PREPARATION DRAFT ONLY
+
+LOCAL_PATH := device/xsd/Pro11
+
+TARGET_ARCH := arm
+TARGET_ARCH_VARIANT := armv7-a-neon
+TARGET_CPU_ABI := armeabi-v7a
+TARGET_CPU_ABI2 := armeabi
+TARGET_CPU_VARIANT := cortex-a53
+
+TARGET_BOARD_PLATFORM := mt6735
+TARGET_BOOTLOADER_BOARD_NAME := aeon6735_36_d_n
+TARGET_NO_BOOTLOADER := true
+
+BOARD_KERNEL_BASE := 0x40000000
+BOARD_KERNEL_OFFSET := 0x00008000
+BOARD_RAMDISK_OFFSET := 0x04000000
+BOARD_TAGS_OFFSET := 0x0E000000
+BOARD_KERNEL_PAGESIZE := 2048
+
+TARGET_PREBUILT_KERNEL := $(LOCAL_PATH)/prebuilt/kernel
+
+TARGET_RECOVERY_FSTAB := $(LOCAL_PATH)/recovery/root/etc/recovery.fstab
+
+TARGET_USERIMAGES_USE_EXT4 := true
+
+BOARD_HAS_NO_SELECT_BUTTON := true
+
+TW_THEME := portrait_hdpi
+
+# Do not guess partition sizes or encryption settings.
+# Touchscreen and framebuffer configuration pending.
