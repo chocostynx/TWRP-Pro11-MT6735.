@@ -16,16 +16,25 @@ jobs:
         uses: actions/checkout@v4
 
 
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl python2 python3 unzip bc \
-            build-essential flex bison zip libssl-dev \
-            libncurses-dev
+          sudo apt-get install -y \
+            git curl python3 unzip bc \
+            build-essential flex bison zip \
+            libssl-dev libncurses-dev \
+            libncurses5 libtinfo5
 
           python2 --version
           python3 --version
           git --version
+
+      
+      - name: Verify legacy Clang libraries
+        shell: bash
+        run: |
+          ldconfig -p | grep -E 'libncurses.so.5|libtinfo.so.5'
 
         
       - name: Setup Java 8
