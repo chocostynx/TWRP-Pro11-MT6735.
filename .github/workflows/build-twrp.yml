@@ -46,6 +46,7 @@ jobs:
 
           repo sync -c --no-tags -j2 --fail-fast
 
+
       - name: Install Pro11 device tree
         shell: bash
         run: |
@@ -64,21 +65,6 @@ jobs:
             "$ARCHIVE/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11" \
             "$SRC/device/xsd/"
 
-          cp "$DEVICE/twrp_Pro11.mk" "$DEVICE/omni_Pro11.mk"
-
-                    cat > "$DEVICE/omni_Pro11.mk" <<'EOF'
-          $(call inherit-product, vendor/omni/config/common.mk)
-
-          PRODUCT_NAME := omni_Pro11
-          PRODUCT_DEVICE := Pro11
-          PRODUCT_BRAND := XSD
-          PRODUCT_MODEL := Pro11
-          PRODUCT_MANUFACTURER := XSD
-          PRODUCT_PLATFORM := mt6735
-
-          PRODUCT_BUILD_PROP_OVERRIDES += \
-            TARGET_DEVICE=Pro11
-
           cat > "$DEVICE/AndroidProducts.mk" <<'EOF'
           PRODUCT_MAKEFILES := \
               $(LOCAL_DIR)/omni_Pro11.mk
@@ -87,13 +73,30 @@ jobs:
               omni_Pro11-eng
           EOF
 
-          test -f "$DEVICE/AndroidProducts.mk"
-          test -f "$DEVICE/omni_Pro11.mk"
-          test -f "$DEVICE/BoardConfig.mk"
+          cat > "$DEVICE/omni_Pro11.mk" <<'EOF'
+          $(call inherit-product, vendor/omni/config/common.mk)
+
+          PRODUCT_NAME := omni_Pro11
+          PRODUCT_DEVICE := Pro11
+          PRODUCT_BRAND := XSD
+          PRODUCT_MODEL := Pro11
+          PRODUCT_MANUFACTURER := XSD
+          PRODUCT_PLATFORM := mt6735
+          EOF
 
           echo "=== AndroidProducts.mk ==="
           cat "$DEVICE/AndroidProducts.mk"
-          echo "Pro11 device tree installed."
+
+          echo "=== omni_Pro11.mk ==="
+          cat "$DEVICE/omni_Pro11.mk"
+
+          test -f "$DEVICE/AndroidProducts.mk"
+          test -f "$DEVICE/omni_Pro11.mk"
+          test -f "$DEVICE/BoardConfig.mk"
+          test -f "$DEVICE/prebuilt/kernel"
+
+          echo "Pro11 product files verified."
+
 
       
       - name: Inspect TWRP product configuration
