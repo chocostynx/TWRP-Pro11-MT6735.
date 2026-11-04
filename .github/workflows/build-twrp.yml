@@ -164,3 +164,38 @@ jobs:
           test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
 
           echo "Pro11 build target checks passed."
+
+          
+      - name: Compile Pro11 TWRP recovery
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/twrp-source"
+
+          export ALLOW_MISSING_DEPENDENCIES=true
+
+          source build/envsetup.sh
+          lunch omni_Pro11-eng
+
+          echo "=== Disk space before build ==="
+          df -h /
+
+          echo "=== Starting recoveryimage build ==="
+          mka recoveryimage -j2
+
+          echo "=== Searching recovery image ==="
+          find out/target/product -maxdepth 3 \
+            -type f -name "recovery.img" -ls
+
+          test -s out/target/product/Pro11/recovery.img
+
+          echo "TWRP recovery image build completed."
+
+      - name: Upload Pro11 recovery image
+        uses: actions/upload-artifact@v4
+        with:
+          name: TWRP-Pro11-MT6735
+          path: |
+            ${{ runner.temp }}/twrp-source/out/target/product/Pro11/recovery.img
+          if-no-files-found: error
+          retention-days: 14
+          
