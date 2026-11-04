@@ -60,6 +60,17 @@ jobs:
 
           cp "$DEVICE/twrp_Pro11.mk" "$DEVICE/omni_Pro11.mk"
 
+                    cat > "$DEVICE/omni_Pro11.mk" <<'EOF'
+          $(call inherit-product, vendor/omni/config/common.mk)
+
+          PRODUCT_DEVICE := Pro11
+          PRODUCT_NAME := omni_Pro11
+          PRODUCT_BRAND := XSD
+          PRODUCT_MODEL := Pro11
+          PRODUCT_MANUFACTURER := XSD
+          PRODUCT_PLATFORM := mt6735
+          EOF
+
           cat > "$DEVICE/AndroidProducts.mk" <<'EOF'
           PRODUCT_MAKEFILES := \
               $(LOCAL_DIR)/omni_Pro11.mk
@@ -100,6 +111,9 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/twrp-source"
 
+          export ALLOW_MISSING_DEPENDENCIES=true
+
+          test -f vendor/omni/config/common.mk
           source build/envsetup.sh
           lunch omni_Pro11-eng
 
@@ -114,5 +128,3 @@ jobs:
           test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
 
           echo "Pro11 lunch target and prebuilt kernel checks passed."
-          df -h /
-          
