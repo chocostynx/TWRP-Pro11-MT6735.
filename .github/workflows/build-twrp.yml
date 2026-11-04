@@ -1,5 +1,5 @@
 
-name: Pro11 TWRP Source Sync
+name: Pro11 TWRP Build Configuration Check
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  sync:
+  check:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Pro11 repository
@@ -17,9 +17,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl python3 unzip
+          sudo apt-get install -y git curl python3 unzip bc \
+            build-essential flex bison zip libssl-dev \
+            libncurses-dev
 
-      - name: Initialize and sync TWRP source
+      - name: Initialize and sync Omni source
+        shell: bash
         run: |
           mkdir -p "$HOME/bin"
           curl -L https://storage.googleapis.com/git-repo-downloads/repo \
@@ -36,17 +39,41 @@ jobs:
 
           repo sync -c --no-tags -j2 --fail-fast
 
-      - name: Check source and device tree
+      - name: Install Pro11 device tree
+        shell: bash
         run: |
           SRC="$RUNNER_TEMP/twrp-source"
-          test -f "$SRC/build/envsetup.sh"
-          test -d "$SRC/bootable/recovery"
-          mkdir -p "$SRC/device/xsd"
-          unzip -q "$GITHUB_WORKSPACE/TWRP_Pro11_MT6735_DeviceTree_DRAFT_v2.zip" \
+          mkdir -p "$RUNNER_TEMP/pro11-archive"
+
+          unzip -q \
+            "$GITHUB_WORKSPACE/TWRP_Pro11_MT6735_DeviceTree_DRAFT_v2.zip" \
             -d "$RUNNER_TEMP/pro11-archive"
+
           cp -a \
             "$RUNNER_TEMP/pro11-archive/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11" \
             "$SRC/device/xsd/"
+
+          test -f "$SRC/device/xsd/Pro11/AndroidProducts.mk"
           test -f "$SRC/device/xsd/Pro11/BoardConfig.mk"
-          echo "TWRP source and Pro11 device tree are present."
+          test -f "$SRC/device/xsd/Pro11/twrp_Pro11.mk"
+
+      - name: Check Omni lunch target
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/twrp-source"
+          source build/envsetup.sh
+          lunch omni_Pro11-eng
+
+          echo "=== Build configuration ==="
+          echo "PRODUCT_NAME=$(get_build_var PRODUCT_NAME)"
+          echo "TARGET_DEVICE=$(get_build_var TARGET_DEVICE)"
+          echo "TARGET_ARCH=$(get_build_var TARGET_ARCH)"
+          echo "TARGET_PREBUILT_KERNEL=$(get_build_var TARGET_PREBUILT_KERNEL)"
+
+          test "$(get_build_var PRODUCT_NAME)" = "omni_Pro11"
+          test "$(get_build_var TARGET_DEVICE)" = "Pro11"
+          test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
+
+          echo "Pro11 lunch target and prebuilt kernel checks passed."
           df -h /
+          
