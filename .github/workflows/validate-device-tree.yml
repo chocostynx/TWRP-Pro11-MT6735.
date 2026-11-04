@@ -1,0 +1,42 @@
+
+name: Validate Pro11 TWRP device tree
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'TWRP_Pro11_MT6735_DeviceTree_DRAFT_v2.zip'
+      - '.github/workflows/validate-device-tree.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check archive and device-tree contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE='TWRP_Pro11_MT6735_DeviceTree_DRAFT_v2.zip'
+          test -f "$ARCHIVE" || { echo "Missing $ARCHIVE"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/pro11-tree"
+          unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/pro11-tree"
+          TREE="$RUNNER_TEMP/pro11-tree/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11"
+          test -f "$TREE/BoardConfig.mk"
+          test -f "$TREE/AndroidProducts.mk"
+          test -f "$TREE/device.mk"
+          test -f "$TREE/twrp_Pro11.mk"
+          test -f "$TREE/prebuilt/kernel"
+          test -f "$TREE/recovery/root/etc/recovery.fstab"
+          KERNEL_SHA="$(sha256sum "$TREE/prebuilt/kernel" | awk '{print $1}')"
+          EXPECTED='fc38df3ee16f80b37294a60d57fd60284399f728e9702e874944a89dce240031'
+          echo "Kernel SHA-256: $KERNEL_SHA"
+          test "$KERNEL_SHA" = "$EXPECTED" || { echo 'Kernel hash mismatch'; exit 1; }
+          echo 'Device-tree archive structure and stock-kernel hash checks passed.'
+          echo 'This workflow DOES NOT compile or produce a flashable recovery image.'
+          
