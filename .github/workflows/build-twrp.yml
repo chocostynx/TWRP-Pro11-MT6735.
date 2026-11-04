@@ -15,12 +15,18 @@ jobs:
       - name: Checkout Pro11 repository
         uses: actions/checkout@v4
 
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl python3 unzip bc \
+          sudo apt-get install -y git curl python2 python3 unzip bc \
             build-essential flex bison zip libssl-dev \
             libncurses-dev
+
+          python2 --version
+          python3 --version
+          git --version
+
 
       - name: Initialize and sync Omni source
         shell: bash
