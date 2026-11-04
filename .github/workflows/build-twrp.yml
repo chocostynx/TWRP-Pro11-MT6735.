@@ -76,6 +76,25 @@ jobs:
           cat "$DEVICE/AndroidProducts.mk"
           echo "Pro11 device tree installed."
 
+      
+      - name: Inspect TWRP product configuration
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/twrp-source"
+
+          echo "=== Product configuration files ==="
+          find build/target/product -maxdepth 1 -type f | sort | head -80
+
+          echo "=== TWRP common configuration ==="
+          find vendor -path "*/config/common.mk" -type f | head -30
+
+          echo "=== eng.mk locations ==="
+          find . -path "*/product/eng.mk" -type f | head -20
+
+          echo "=== Current Pro11 product file ==="
+          cat device/xsd/Pro11/omni_Pro11.mk
+          
+
       - name: Check Omni lunch target
         shell: bash
         run: |
