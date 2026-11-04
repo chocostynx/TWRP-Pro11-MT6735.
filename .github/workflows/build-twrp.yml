@@ -110,6 +110,26 @@ jobs:
 
           echo "=== Current Pro11 product file ==="
           cat device/xsd/Pro11/omni_Pro11.mk
+
+      
+
+      - name: Patch Python compatibility
+        shell: bash
+        run: |
+          FILE="$RUNNER_TEMP/twrp-source/vendor/omni/build/tools/roomservice.py"
+
+          echo "=== Original Python syntax ==="
+          grep -n "except IOError" "$FILE"
+
+          sed -i 's/except IOError, ES\.ParseError:/except (IOError, ES.ParseError):/' "$FILE"
+
+          echo "=== Patched Python syntax ==="
+          grep -n "except (IOError" "$FILE"
+
+          python3 -m py_compile "$FILE"
+
+          echo "Python compatibility patch passed."
+
           
 
       - name: Check Omni lunch target
