@@ -69,13 +69,15 @@ jobs:
                     cat > "$DEVICE/omni_Pro11.mk" <<'EOF'
           $(call inherit-product, vendor/omni/config/common.mk)
 
-          PRODUCT_DEVICE := Pro11
           PRODUCT_NAME := omni_Pro11
+          PRODUCT_DEVICE := Pro11
           PRODUCT_BRAND := XSD
           PRODUCT_MODEL := Pro11
           PRODUCT_MANUFACTURER := XSD
           PRODUCT_PLATFORM := mt6735
-          EOF
+
+          PRODUCT_BUILD_PROP_OVERRIDES += \
+            TARGET_DEVICE=Pro11
 
           cat > "$DEVICE/AndroidProducts.mk" <<'EOF'
           PRODUCT_MAKEFILES := \
@@ -144,13 +146,14 @@ jobs:
           lunch omni_Pro11-eng
 
           echo "=== Build configuration ==="
-          echo "PRODUCT_NAME=$(get_build_var PRODUCT_NAME)"
+                    echo "PRODUCT_NAME=$(get_build_var PRODUCT_NAME)"
           echo "TARGET_DEVICE=$(get_build_var TARGET_DEVICE)"
           echo "TARGET_ARCH=$(get_build_var TARGET_ARCH)"
           echo "TARGET_PREBUILT_KERNEL=$(get_build_var TARGET_PREBUILT_KERNEL)"
 
-          test "$(get_build_var PRODUCT_NAME)" = "omni_Pro11"
+          test "$(get_build_var TARGET_PRODUCT)" = "omni_Pro11"
           test "$(get_build_var TARGET_DEVICE)" = "Pro11"
+          test "$(get_build_var TARGET_ARCH)" = "arm"
           test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
 
-          echo "Pro11 lunch target and prebuilt kernel checks passed."
+          echo "Pro11 build target checks passed."
