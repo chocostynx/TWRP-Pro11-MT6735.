@@ -1,0 +1,10 @@
+# XSD Pro11 - MT6735
+# PREPARATION DRAFT ONLY
+
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/system    /system    ext4    ro      wait,verify
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/cache     /cache     ext4    rw      wait,check
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/boot      /boot      emmc    defaults
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/recovery  /recovery  emmc    defaults
+
+# /data intentionally omitted pending encryption configuration.
+# Do not format nvram, nvdata, protect1, protect2, proinfo, seccfg or tee.
