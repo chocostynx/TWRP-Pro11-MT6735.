@@ -1,5 +1,5 @@
 
-name: Pro11 TWRP Build Preparation
+name: Pro11 TWRP Source Sync
 
 on:
   workflow_dispatch:
@@ -8,39 +8,35 @@ permissions:
   contents: read
 
 jobs:
-  prepare:
+  sync:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check available disk space
-        run: |
-          echo "=== Disk space ==="
-          df -h /
-          echo "=== Memory ==="
-          free -h
-          echo "=== CPU ==="
-          nproc
+      - name: Checkout Pro11 repository
+        uses: actions/checkout@v4
 
-
-      - name: Install build dependencies
+      - name: Install repo dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git-core gnupg flex bison build-essential \
-            zip curl zlib1g-dev gcc-multilib g++-multilib \
-            libc6-dev-i386 lib32ncurses5-dev \
-            x11proto-core-dev libx11-dev lib32z1-dev \
-            libxml2-utils xsltproc unzip bc \
-            python2 python3
+          sudo apt-get install -y git curl python3 unzip
 
-      - name: Check Python
+      - name: Initialize Omni TWRP source
         run: |
-          python2 --version
-          python3 --version
+          mkdir -p "$HOME/bin"
+          curl -L https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          export PATH="$HOME/bin:$PATH"
 
+          mkdir -p "$GITHUB_WORKSPACE/twrp-source"
+          cd "$GITHUB_WORKSPACE/twrp-source"
 
-      - name: Preparation summary
+          repo init \
+            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni.git \
+            -b twrp-8.1
+
+      - name: Check source manifest
         run: |
-          echo "Runner preparation completed."
-          echo "No Android source has been synced."
-          echo "No recovery image has been compiled."
-          
+          cd "$GITHUB_WORKSPACE/twrp-source"
+          test -f .repo/manifest.xml
+          echo "Omni TWRP 8.1 manifest initialized."
+          echo "Full source sync and compilation have not started."
