@@ -56,6 +56,22 @@ jobs:
           javac -version
           echo "JAVA_HOME=$JAVA_HOME"
 
+          
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '2.7'
+
+      - name: Configure legacy Python
+        shell: bash
+        run: |
+          mkdir -p "$HOME/legacy-python"
+          ln -sf "$(which python2)" "$HOME/legacy-python/python"
+          echo "$HOME/legacy-python" >> "$GITHUB_PATH"
+
+          python --version
+          python2 --version
+
 
       - name: Initialize and sync Omni source
         shell: bash
