@@ -44,6 +44,7 @@ jobs:
         shell: bash
         run: |
           SRC="$RUNNER_TEMP/twrp-source"
+          DEVICE="$SRC/device/xsd/Pro11"
           ARCHIVE="$RUNNER_TEMP/pro11-archive"
 
           mkdir -p "$ARCHIVE"
@@ -57,11 +58,23 @@ jobs:
             "$ARCHIVE/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11" \
             "$SRC/device/xsd/"
 
-          test -f "$SRC/device/xsd/Pro11/AndroidProducts.mk"
-          test -f "$SRC/device/xsd/Pro11/BoardConfig.mk"
-          test -f "$SRC/device/xsd/Pro11/twrp_Pro11.mk"
+          cp "$DEVICE/twrp_Pro11.mk" "$DEVICE/omni_Pro11.mk"
 
-          echo "Pro11 device tree copied successfully."
+          cat > "$DEVICE/AndroidProducts.mk" <<'EOF'
+          PRODUCT_MAKEFILES := \
+              $(LOCAL_DIR)/omni_Pro11.mk
+
+          COMMON_LUNCH_CHOICES := \
+              omni_Pro11-eng
+          EOF
+
+          test -f "$DEVICE/AndroidProducts.mk"
+          test -f "$DEVICE/omni_Pro11.mk"
+          test -f "$DEVICE/BoardConfig.mk"
+
+          echo "=== AndroidProducts.mk ==="
+          cat "$DEVICE/AndroidProducts.mk"
+          echo "Pro11 device tree installed."
 
       - name: Check Omni lunch target
         shell: bash
