@@ -10,6 +10,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout Pro11 repository
         uses: actions/checkout@v4
@@ -39,7 +40,7 @@ jobs:
 
           repo sync -c --no-tags -j2 --fail-fast
 
-          - name: Install Pro11 device tree
+      - name: Install Pro11 device tree
         shell: bash
         run: |
           SRC="$RUNNER_TEMP/twrp-source"
@@ -66,6 +67,7 @@ jobs:
         shell: bash
         run: |
           cd "$RUNNER_TEMP/twrp-source"
+
           source build/envsetup.sh
           lunch omni_Pro11-eng
 
