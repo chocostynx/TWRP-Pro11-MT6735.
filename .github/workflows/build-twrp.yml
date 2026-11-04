@@ -14,12 +14,12 @@ jobs:
       - name: Checkout Pro11 repository
         uses: actions/checkout@v4
 
-      - name: Install repo dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git curl python3 unzip
 
-      - name: Initialize Omni TWRP source
+      - name: Initialize and sync TWRP source
         run: |
           mkdir -p "$HOME/bin"
           curl -L https://storage.googleapis.com/git-repo-downloads/repo \
@@ -27,16 +27,26 @@ jobs:
           chmod a+x "$HOME/bin/repo"
           export PATH="$HOME/bin:$PATH"
 
-          mkdir -p "$GITHUB_WORKSPACE/twrp-source"
-          cd "$GITHUB_WORKSPACE/twrp-source"
+          mkdir -p "$RUNNER_TEMP/twrp-source"
+          cd "$RUNNER_TEMP/twrp-source"
 
-          repo init \
+          repo init --depth=1 \
             -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni.git \
             -b twrp-8.1
 
-      - name: Check source manifest
+          repo sync -c --no-tags -j2 --fail-fast
+
+      - name: Check source and device tree
         run: |
-          cd "$GITHUB_WORKSPACE/twrp-source"
-          test -f .repo/manifest.xml
-          echo "Omni TWRP 8.1 manifest initialized."
-          echo "Full source sync and compilation have not started."
+          SRC="$RUNNER_TEMP/twrp-source"
+          test -f "$SRC/build/envsetup.sh"
+          test -d "$SRC/bootable/recovery"
+          mkdir -p "$SRC/device/xsd"
+          unzip -q "$GITHUB_WORKSPACE/TWRP_Pro11_MT6735_DeviceTree_DRAFT_v2.zip" \
+            -d "$RUNNER_TEMP/pro11-archive"
+          cp -a \
+            "$RUNNER_TEMP/pro11-archive/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11" \
+            "$SRC/device/xsd/"
+          test -f "$SRC/device/xsd/Pro11/BoardConfig.mk"
+          echo "TWRP source and Pro11 device tree are present."
+          df -h /
