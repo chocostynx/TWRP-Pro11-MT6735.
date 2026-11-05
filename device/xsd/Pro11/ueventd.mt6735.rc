@@ -1,0 +1,4 @@
+/dev/touch 0660 root system
+/dev/block/mmcblk0 0660 root system
+/dev/block/mmcblk0boot0 0660 root system
+/dev/block/mmcblk0boot1 0660 root system
