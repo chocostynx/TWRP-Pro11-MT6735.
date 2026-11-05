@@ -1,5 +1,5 @@
 
-name: Pro11 TWRP Build Configuration Check
+name: Pro11 TWRP Build
 
 on:
   workflow_dispatch:
@@ -8,84 +8,88 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-22.04
 
     steps:
+      # 1. Checkout repository
       - name: Checkout Pro11 repository
         uses: actions/checkout@v4
 
-
-
-
+      # 2. Install system dependencies
       - name: Install dependencies
+        shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git curl python3 unzip bc \
-            build-essential flex bison zip \
-            libssl-dev libncurses-dev \
-            libncurses5 libtinfo5
 
-          echo "=== Python 3 ==="
+          sudo apt-get install -y \
+            git curl wget unzip zip \
+            python3 python3-dev \
+            python2.7 python2.7-dev \
+            bc bison flex build-essential \
+            libssl-dev libncurses-dev \
+            libncurses5 libtinfo5 \
+            zlib1g-dev libxml2-utils \
+            xsltproc rsync ccache
+
+          echo "=== Python versions ==="
           python3 --version
+          python2.7 --version
 
           echo "=== Legacy libraries ==="
           ldconfig -p | grep -E 'libncurses.so.5|libtinfo.so.5'
 
-          python3 --version
+          echo "=== Git ==="
           git --version
 
-      
-      - name: Verify legacy Clang libraries
+      # 3. Configure Python 2 for legacy Android scripts
+      - name: Configure legacy Python
         shell: bash
         run: |
-          ldconfig -p | grep -E 'libncurses.so.5|libtinfo.so.5'
+          sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python
+          sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python2
 
-        
+          mkdir -p "$HOME/legacy-python"
+
+          ln -sf /usr/bin/python2.7 \
+            "$HOME/legacy-python/python"
+
+          echo "$HOME/legacy-python" >> "$GITHUB_PATH"
+
+          export PATH="$HOME/legacy-python:$PATH"
+
+          echo "=== Verify Python ==="
+          which python
+          python --version
+          python2 --version
+          python3 --version
+
+      # 4. Setup Java 8
       - name: Setup Java 8
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      - name: Verify Java version
+      - name: Verify Java
         shell: bash
         run: |
           java -version
           javac -version
           echo "JAVA_HOME=$JAVA_HOME"
 
-          
-      - name: Install Python 2.7
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python2.7 python2.7-dev
-
-          sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python
-          sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python2
-
-          python --version
-          python2 --version
-
-      - name: Configure legacy Python
-        shell: bash
-        run: |
-          mkdir -p "$HOME/legacy-python"
-          ln -sf "$(which python2)" "$HOME/legacy-python/python"
-          echo "$HOME/legacy-python" >> "$GITHUB_PATH"
-
-          python --version
-          python2 --version
-
-
+      # 5. Initialize and sync Omni TWRP source
       - name: Initialize and sync Omni source
         shell: bash
         run: |
           mkdir -p "$HOME/bin"
-          curl -L https://storage.googleapis.com/git-repo-downloads/repo \
+
+          curl -L \
+            https://storage.googleapis.com/git-repo-downloads/repo \
             -o "$HOME/bin/repo"
+
           chmod a+x "$HOME/bin/repo"
+
           export PATH="$HOME/bin:$PATH"
 
           mkdir -p "$RUNNER_TEMP/twrp-source"
@@ -97,7 +101,7 @@ jobs:
 
           repo sync -c --no-tags -j2 --fail-fast
 
-
+      # 6. Install Pro11 device tree
       - name: Install Pro11 device tree
         shell: bash
         run: |
@@ -116,6 +120,7 @@ jobs:
             "$ARCHIVE/TWRP_Pro11_MT6735_DeviceTree_v2/device/xsd/Pro11" \
             "$SRC/device/xsd/"
 
+          # Configure Omni product
           cat > "$DEVICE/AndroidProducts.mk" <<'EOF'
           PRODUCT_MAKEFILES := \
               $(LOCAL_DIR)/omni_Pro11.mk
@@ -135,94 +140,90 @@ jobs:
           PRODUCT_PLATFORM := mt6735
           EOF
 
-          echo "=== AndroidProducts.mk ==="
-          cat "$DEVICE/AndroidProducts.mk"
+          echo "=== Device tree files ==="
+          find "$DEVICE" -maxdepth 5 -type f | sort
 
-          echo "=== omni_Pro11.mk ==="
-          cat "$DEVICE/omni_Pro11.mk"
-
+          test -f "$DEVICE/BoardConfig.mk"
+          test -f "$DEVICE/device.mk"
+          test -f "$DEVICE/prebuilt/kernel"
+          test -f "$DEVICE/recovery/root/etc/recovery.fstab"
+          test -f "$DEVICE/recovery/root/ueventd.mt6735.rc"
           test -f "$DEVICE/AndroidProducts.mk"
           test -f "$DEVICE/omni_Pro11.mk"
-          test -f "$DEVICE/BoardConfig.mk"
-          test -f "$DEVICE/prebuilt/kernel"
 
-          echo "Pro11 product files verified."
+          echo "Pro11 device tree verified."
 
-
-      
-      - name: Inspect TWRP product configuration
-        shell: bash
-        run: |
-          cd "$RUNNER_TEMP/twrp-source"
-
-          echo "=== Product configuration files ==="
-          find build/target/product -maxdepth 1 -type f | sort | head -80
-
-          echo "=== TWRP common configuration ==="
-          find vendor -path "*/config/common.mk" -type f | head -30
-
-          echo "=== eng.mk locations ==="
-          find . -path "*/product/eng.mk" -type f | head -20
-
-          echo "=== Current Pro11 product file ==="
-          cat device/xsd/Pro11/omni_Pro11.mk
-
-      
-
+      # 7. Patch legacy Python syntax
       - name: Patch Python compatibility
         shell: bash
         run: |
           FILE="$RUNNER_TEMP/twrp-source/vendor/omni/build/tools/roomservice.py"
 
-          echo "=== Original Python syntax ==="
-          grep -n "except IOError" "$FILE"
+          if [ -f "$FILE" ]; then
+            echo "=== Original Python syntax ==="
+            grep -n "except IOError" "$FILE" || true
 
-          sed -i 's/except IOError, ES\.ParseError:/except (IOError, ES.ParseError):/' "$FILE"
+            sed -i \
+              's/except IOError, ES\.ParseError:/except (IOError, ES.ParseError):/' \
+              "$FILE"
 
-          echo "=== Patched Python syntax ==="
-          grep -n "except (IOError" "$FILE"
+            echo "=== Patched Python syntax ==="
+            grep -n "except (IOError" "$FILE" || true
 
-          python3 -m py_compile "$FILE"
+            python3 -m py_compile "$FILE"
 
-          echo "Python compatibility patch passed."
+            echo "roomservice.py compatibility check passed."
+          else
+            echo "roomservice.py not found; skipping patch."
+          fi
 
-          
-
+      # 8. Check build configuration
       - name: Check Omni lunch target
         shell: bash
         run: |
           cd "$RUNNER_TEMP/twrp-source"
 
           export ALLOW_MISSING_DEPENDENCIES=true
+          export PATH="$HOME/legacy-python:$PATH"
 
           test -f vendor/omni/config/common.mk
+
           source build/envsetup.sh
           lunch omni_Pro11-eng
 
-          echo "PRODUCT_NAME variable: $PRODUCT_NAME"
-          echo "TARGET_PRODUCT variable: $TARGET_PRODUCT"
-          echo "TARGET_DEVICE variable: $TARGET_DEVICE"
-
           echo "=== Build configuration ==="
-          echo "PRODUCT_NAME=$(get_build_var PRODUCT_NAME)"
+
+          echo "TARGET_PRODUCT=$(get_build_var TARGET_PRODUCT)"
           echo "TARGET_DEVICE=$(get_build_var TARGET_DEVICE)"
           echo "TARGET_ARCH=$(get_build_var TARGET_ARCH)"
+          echo "TARGET_ARCH_VARIANT=$(get_build_var TARGET_ARCH_VARIANT)"
+          echo "TARGET_CPU_VARIANT=$(get_build_var TARGET_CPU_VARIANT)"
           echo "TARGET_PREBUILT_KERNEL=$(get_build_var TARGET_PREBUILT_KERNEL)"
+
+          echo "=== Kernel and ramdisk configuration ==="
+
+          echo "BOARD_KERNEL_BASE=$(get_build_var BOARD_KERNEL_BASE)"
+          echo "BOARD_KERNEL_OFFSET=$(get_build_var BOARD_KERNEL_OFFSET)"
+          echo "BOARD_RAMDISK_OFFSET=$(get_build_var BOARD_RAMDISK_OFFSET)"
+          echo "BOARD_TAGS_OFFSET=$(get_build_var BOARD_TAGS_OFFSET)"
+          echo "BOARD_KERNEL_PAGESIZE=$(get_build_var BOARD_KERNEL_PAGESIZE)"
 
           test "$(get_build_var TARGET_PRODUCT)" = "omni_Pro11"
           test "$(get_build_var TARGET_DEVICE)" = "Pro11"
           test "$(get_build_var TARGET_ARCH)" = "arm"
+
           test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
 
-          echo "Pro11 build target checks passed."
+          echo "Pro11 build configuration passed."
 
-          
+      # 9. Compile recovery
       - name: Compile Pro11 TWRP recovery
         shell: bash
         run: |
           cd "$RUNNER_TEMP/twrp-source"
 
           export ALLOW_MISSING_DEPENDENCIES=true
+          export PATH="$HOME/legacy-python:$PATH"
 
           source build/envsetup.sh
           lunch omni_Pro11-eng
@@ -230,23 +231,67 @@ jobs:
           echo "=== Disk space before build ==="
           df -h /
 
-          echo "=== Starting recoveryimage build ==="
-          mka recoveryimage -j2
+          echo "=== Starting TWRP recovery build ==="
+
+          set -o pipefail
+          mka recoveryimage -j2 \
+            2>&1 | tee "$RUNNER_TEMP/twrp-build.log"
 
           echo "=== Searching recovery image ==="
-          find out/target/product -maxdepth 3 \
-            -type f -name "recovery.img" -ls
+
+          find out/target/product \
+            -maxdepth 3 \
+            -type f \
+            -name "recovery.img" \
+            -ls
 
           test -s out/target/product/Pro11/recovery.img
 
-          echo "TWRP recovery image build completed."
+          echo "TWRP recovery build completed."
 
-      - name: Upload Pro11 recovery image
+      # 10. Inspect generated recovery header
+      - name: Inspect recovery image
+        shell: bash
+        run: |
+          RECOVERY="$RUNNER_TEMP/twrp-source/out/target/product/Pro11/recovery.img"
+
+          test -s "$RECOVERY"
+
+          echo "=== Recovery image size ==="
+          ls -lh "$RECOVERY"
+          stat -c '%s bytes' "$RECOVERY"
+
+          echo "=== Recovery boot image header ==="
+
+          python3 - "$RECOVERY" <<'PY'
+          import struct
+          import sys
+
+          with open(sys.argv[1], "rb") as f:
+              h = f.read(64)
+
+          print("Magic:", h[:8])
+
+          if h[:8] != b"ANDROID!":
+              raise SystemExit("Invalid Android boot image magic")
+
+          print("Kernel size:", struct.unpack_from("<I", h, 8)[0])
+          print("Kernel address:", hex(struct.unpack_from("<I", h, 12)[0]))
+          print("Ramdisk size:", struct.unpack_from("<I", h, 16)[0])
+          print("Ramdisk address:", hex(struct.unpack_from("<I", h, 20)[0]))
+          print("Page size:", struct.unpack_from("<I", h, 36)[0])
+          PY
+
+          echo "Recovery header inspection completed."
+
+      # 11. Upload recovery and build log
+      - name: Upload Pro11 recovery artifact
         uses: actions/upload-artifact@v4
         with:
           name: TWRP-Pro11-MT6735
           path: |
             ${{ runner.temp }}/twrp-source/out/target/product/Pro11/recovery.img
+            ${{ runner.temp }}/twrp-build.log
           if-no-files-found: error
           retention-days: 14
           
