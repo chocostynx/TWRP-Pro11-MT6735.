@@ -102,6 +102,7 @@ jobs:
           repo sync -c --no-tags -j2 --fail-fast
 
       # 6. Install Pro11 device tree
+
       - name: Install Pro11 device tree
         shell: bash
         run: |
@@ -140,9 +141,17 @@ jobs:
           PRODUCT_PLATFORM := mt6735
           EOF
 
+          # Add touchscreen ueventd configuration
+          mkdir -p "$DEVICE/recovery/root"
+
+          cat > "$DEVICE/recovery/root/ueventd.mt6735.rc" <<'EOF'
+          /dev/touch 0660 root system
+          EOF
+
           echo "=== Device tree files ==="
           find "$DEVICE" -maxdepth 5 -type f | sort
 
+          # Verify required files
           test -f "$DEVICE/BoardConfig.mk"
           test -f "$DEVICE/device.mk"
           test -f "$DEVICE/prebuilt/kernel"
@@ -152,6 +161,7 @@ jobs:
           test -f "$DEVICE/omni_Pro11.mk"
 
           echo "Pro11 device tree verified."
+
 
       # 7. Patch legacy Python syntax
       - name: Patch Python compatibility
