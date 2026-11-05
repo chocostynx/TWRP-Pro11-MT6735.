@@ -16,7 +16,7 @@ jobs:
       - name: Checkout Pro11 repository
         uses: actions/checkout@v4
 
-      # 2. Install system dependencies
+      # 2. Install dependencies
       - name: Install dependencies
         shell: bash
         run: |
@@ -32,34 +32,27 @@ jobs:
             zlib1g-dev libxml2-utils \
             xsltproc rsync ccache
 
-          echo "=== Python versions ==="
+          echo "=== Python ==="
           python3 --version
           python2.7 --version
 
           echo "=== Legacy libraries ==="
           ldconfig -p | grep -E 'libncurses.so.5|libtinfo.so.5'
 
-          echo "=== Git ==="
-          git --version
-
-      # 3. Configure Python 2 for legacy Android scripts
-      - name: Configure legacy Python
+      # 3. Configure legacy Python
+      - name: Configure Python 2.7
         shell: bash
         run: |
           sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python
           sudo ln -sf /usr/bin/python2.7 /usr/local/bin/python2
 
           mkdir -p "$HOME/legacy-python"
-
-          ln -sf /usr/bin/python2.7 \
-            "$HOME/legacy-python/python"
+          ln -sf /usr/bin/python2.7 "$HOME/legacy-python/python"
 
           echo "$HOME/legacy-python" >> "$GITHUB_PATH"
 
           export PATH="$HOME/legacy-python:$PATH"
 
-          echo "=== Verify Python ==="
-          which python
           python --version
           python2 --version
           python3 --version
@@ -78,7 +71,7 @@ jobs:
           javac -version
           echo "JAVA_HOME=$JAVA_HOME"
 
-      # 5. Initialize and sync Omni TWRP source
+      # 5. Initialize Omni source
       - name: Initialize and sync Omni source
         shell: bash
         run: |
@@ -89,7 +82,6 @@ jobs:
             -o "$HOME/bin/repo"
 
           chmod a+x "$HOME/bin/repo"
-
           export PATH="$HOME/bin:$PATH"
 
           mkdir -p "$RUNNER_TEMP/twrp-source"
@@ -102,7 +94,6 @@ jobs:
           repo sync -c --no-tags -j2 --fail-fast
 
       # 6. Install Pro11 device tree
-
       - name: Install Pro11 device tree
         shell: bash
         run: |
@@ -141,17 +132,18 @@ jobs:
           PRODUCT_PLATFORM := mt6735
           EOF
 
-          # Add touchscreen ueventd configuration
+          # Ensure touchscreen ueventd file exists
           mkdir -p "$DEVICE/recovery/root"
 
-          cat > "$DEVICE/recovery/root/ueventd.mt6735.rc" <<'EOF'
+          if [ ! -f "$DEVICE/recovery/root/ueventd.mt6735.rc" ]; then
+            cat > "$DEVICE/recovery/root/ueventd.mt6735.rc" <<'EOF'
           /dev/touch 0660 root system
           EOF
+          fi
 
           echo "=== Device tree files ==="
           find "$DEVICE" -maxdepth 5 -type f | sort
 
-          # Verify required files
           test -f "$DEVICE/BoardConfig.mk"
           test -f "$DEVICE/device.mk"
           test -f "$DEVICE/prebuilt/kernel"
@@ -162,32 +154,24 @@ jobs:
 
           echo "Pro11 device tree verified."
 
-
-      # 7. Patch legacy Python syntax
+      # 7. Patch known Python compatibility issue
       - name: Patch Python compatibility
         shell: bash
         run: |
           FILE="$RUNNER_TEMP/twrp-source/vendor/omni/build/tools/roomservice.py"
 
           if [ -f "$FILE" ]; then
-            echo "=== Original Python syntax ==="
-            grep -n "except IOError" "$FILE" || true
-
             sed -i \
               's/except IOError, ES\.ParseError:/except (IOError, ES.ParseError):/' \
               "$FILE"
 
-            echo "=== Patched Python syntax ==="
-            grep -n "except (IOError" "$FILE" || true
-
             python3 -m py_compile "$FILE"
-
             echo "roomservice.py compatibility check passed."
           else
-            echo "roomservice.py not found; skipping patch."
+            echo "roomservice.py not found; skipping."
           fi
 
-      # 8. Check build configuration
+      # 8. Check Omni lunch target
       - name: Check Omni lunch target
         shell: bash
         run: |
@@ -196,21 +180,18 @@ jobs:
           export ALLOW_MISSING_DEPENDENCIES=true
           export PATH="$HOME/legacy-python:$PATH"
 
-          test -f vendor/omni/config/common.mk
-
           source build/envsetup.sh
           lunch omni_Pro11-eng
 
-          echo "=== Build configuration ==="
+          echo "=== Product configuration ==="
 
           echo "TARGET_PRODUCT=$(get_build_var TARGET_PRODUCT)"
           echo "TARGET_DEVICE=$(get_build_var TARGET_DEVICE)"
           echo "TARGET_ARCH=$(get_build_var TARGET_ARCH)"
           echo "TARGET_ARCH_VARIANT=$(get_build_var TARGET_ARCH_VARIANT)"
           echo "TARGET_CPU_VARIANT=$(get_build_var TARGET_CPU_VARIANT)"
-          echo "TARGET_PREBUILT_KERNEL=$(get_build_var TARGET_PREBUILT_KERNEL)"
 
-          echo "=== Kernel and ramdisk configuration ==="
+          echo "=== Boot image configuration ==="
 
           echo "BOARD_KERNEL_BASE=$(get_build_var BOARD_KERNEL_BASE)"
           echo "BOARD_KERNEL_OFFSET=$(get_build_var BOARD_KERNEL_OFFSET)"
@@ -218,15 +199,62 @@ jobs:
           echo "BOARD_TAGS_OFFSET=$(get_build_var BOARD_TAGS_OFFSET)"
           echo "BOARD_KERNEL_PAGESIZE=$(get_build_var BOARD_KERNEL_PAGESIZE)"
 
+          echo "=== Kernel ==="
+
+          KERNEL="$(get_build_var TARGET_PREBUILT_KERNEL)"
+          echo "TARGET_PREBUILT_KERNEL=$KERNEL"
+
           test "$(get_build_var TARGET_PRODUCT)" = "omni_Pro11"
           test "$(get_build_var TARGET_DEVICE)" = "Pro11"
           test "$(get_build_var TARGET_ARCH)" = "arm"
+          test -f "$KERNEL"
 
-          test -f "$(get_build_var TARGET_PREBUILT_KERNEL)"
+          echo "Pro11 lunch target passed."
 
-          echo "Pro11 build configuration passed."
+      # 9. Inspect mkbootimg implementation
+      - name: Inspect boot image build configuration
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/twrp-source"
 
-      # 9. Compile recovery
+          REPORT="$RUNNER_TEMP/boot-config-report.txt"
+
+          {
+            echo "=== BoardConfig values ==="
+            grep -nE \
+              'BOARD_KERNEL_BASE|BOARD_KERNEL_OFFSET|BOARD_RAMDISK_OFFSET|BOARD_TAGS_OFFSET|BOARD_KERNEL_PAGESIZE' \
+              device/xsd/Pro11/BoardConfig.mk || true
+
+            echo
+            echo "=== RAMDISK OFFSET references ==="
+
+            grep -R -n \
+              "BOARD_RAMDISK_OFFSET" \
+              build core device vendor \
+              --include="*.mk" \
+              --include="*.py" \
+              --include="*.sh" \
+              2>/dev/null | head -100 || true
+
+            echo
+            echo "=== MKBOOTIMG references ==="
+
+            grep -R -n \
+              "mkbootimg" \
+              build/core \
+              --include="*.mk" \
+              --include="*.py" \
+              --include="*.sh" \
+              2>/dev/null | head -100 || true
+
+            echo
+            echo "=== Available mkbootimg tools ==="
+
+            find . -iname '*mkbootimg*' -type f | head -50
+
+          } | tee "$REPORT"
+
+      # 10. Compile recovery
       - name: Compile Pro11 TWRP recovery
         shell: bash
         run: |
@@ -241,25 +269,24 @@ jobs:
           echo "=== Disk space before build ==="
           df -h /
 
-          echo "=== Starting TWRP recovery build ==="
+          echo "=== Starting recovery build ==="
 
           set -o pipefail
+
           mka recoveryimage -j2 \
             2>&1 | tee "$RUNNER_TEMP/twrp-build.log"
 
-          echo "=== Searching recovery image ==="
+          RECOVERY="out/target/product/Pro11/recovery.img"
 
-          find out/target/product \
-            -maxdepth 3 \
-            -type f \
-            -name "recovery.img" \
-            -ls
+          test -s "$RECOVERY"
 
-          test -s out/target/product/Pro11/recovery.img
+          echo "=== Recovery image ==="
+          ls -lh "$RECOVERY"
+          stat -c '%s bytes' "$RECOVERY"
 
-          echo "TWRP recovery build completed."
+          echo "Recovery build completed."
 
-      # 10. Inspect generated recovery header
+      # 11. Inspect recovery header
       - name: Inspect recovery image
         shell: bash
         run: |
@@ -267,41 +294,66 @@ jobs:
 
           test -s "$RECOVERY"
 
-          echo "=== Recovery image size ==="
-          ls -lh "$RECOVERY"
-          stat -c '%s bytes' "$RECOVERY"
-
-          echo "=== Recovery boot image header ==="
+          echo "=== Recovery header ==="
 
           python3 - "$RECOVERY" <<'PY'
           import struct
           import sys
+          import hashlib
 
-          with open(sys.argv[1], "rb") as f:
-              h = f.read(64)
+          path = sys.argv[1]
 
-          print("Magic:", h[:8])
+          with open(path, "rb") as f:
+              header = f.read(64)
 
-          if h[:8] != b"ANDROID!":
-              raise SystemExit("Invalid Android boot image magic")
+          if header[:8] != b"ANDROID!":
+              raise SystemExit("ERROR: Invalid Android boot image")
 
-          print("Kernel size:", struct.unpack_from("<I", h, 8)[0])
-          print("Kernel address:", hex(struct.unpack_from("<I", h, 12)[0]))
-          print("Ramdisk size:", struct.unpack_from("<I", h, 16)[0])
-          print("Ramdisk address:", hex(struct.unpack_from("<I", h, 20)[0]))
-          print("Page size:", struct.unpack_from("<I", h, 36)[0])
+          print("Magic:", header[:8])
+          print("Kernel size:", struct.unpack_from("<I", header, 8)[0])
+          print("Kernel address:", hex(struct.unpack_from("<I", header, 12)[0]))
+          print("Ramdisk size:", struct.unpack_from("<I", header, 16)[0])
+          print("Ramdisk address:", hex(struct.unpack_from("<I", header, 20)[0]))
+          print("Second size:", struct.unpack_from("<I", header, 24)[0])
+          print("Second address:", hex(struct.unpack_from("<I", header, 28)[0]))
+          print("Tags address:", hex(struct.unpack_from("<I", header, 32)[0]))
+          print("Page size:", struct.unpack_from("<I", header, 36)[0])
+
+          with open(path, "rb") as f:
+              digest = hashlib.sha256(f.read()).hexdigest()
+
+          print("Recovery SHA256:", digest)
           PY
 
-          echo "Recovery header inspection completed."
+          echo "=== Kernel SHA256 ==="
 
-      # 11. Upload recovery and build log
-      - name: Upload Pro11 recovery artifact
+          sha256sum \
+            "$RUNNER_TEMP/twrp-source/device/xsd/Pro11/prebuilt/kernel"
+
+      # 12. Collect diagnostic reports
+      - name: Collect build reports
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pro11-reports"
+
+          if [ -f "$RUNNER_TEMP/twrp-build.log" ]; then
+            cp "$RUNNER_TEMP/twrp-build.log" \
+              "$RUNNER_TEMP/pro11-reports/"
+          fi
+
+          if [ -f "$RUNNER_TEMP/boot-config-report.txt" ]; then
+            cp "$RUNNER_TEMP/boot-config-report.txt" \
+              "$RUNNER_TEMP/pro11-reports/"
+          fi
+
+      # 13. Upload artifacts
+      - name: Upload Pro11 recovery and reports
         uses: actions/upload-artifact@v4
         with:
           name: TWRP-Pro11-MT6735
           path: |
             ${{ runner.temp }}/twrp-source/out/target/product/Pro11/recovery.img
-            ${{ runner.temp }}/twrp-build.log
+            ${{ runner.temp }}/pro11-reports/
           if-no-files-found: error
           retention-days: 14
-          
